@@ -1,0 +1,98 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    match /users/{userId} {
+
+      // Anyone can read user profiles (needed for public /u/[username] page)
+      allow read: if true;
+
+      // Only the authenticated owner can create their own profile
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.uid == userId;
+
+      // Only the authenticated owner can update their own profile
+      // Cannot change uid, email, username, or createdAt
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.uid == resource.data.uid
+                    && request.resource.data.email == resource.data.email
+                    && (
+                      // Allow setting username during onboarding (when currently empty)
+                      (resource.data.username == "" && request.resource.data.username is string)
+                      ||
+                      // Prevent changing username after onboarding
+                      request.resource.data.username == resource.data.username
+                    );
+
+      // Users cannot delete their profiles (admin only)
+      allow delete: if false;
+    }
+
+    // ============================================
+    // USERNAMES COLLECTION (uniqueness lookup)
+    // ============================================
+    match /usernames/{username} {
+
+      // Anyone can read (for availability checks)
+      allow read: if true;
+
+      // Only authenticated users can reserve a username
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.username is string
+                    && request.resource.data.username.size() >= 3
+                    && request.resource.data.username.size() <= 20;
+
+      // Usernames cannot be updated or deleted
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ============================================
+    // MESSAGES COLLECTION
+    // ============================================
+    match /messages/{messageId} {
+
+      // Recipient can read their own messages
+      // Admin can read all messages for moderation
+      allow read: if request.auth != null
+                  && (resource.data.recipientId == request.auth.uid
+                      || request.auth.token.email == "admin@inkognito.com");
+
+      // Anyone can create (send) a message — no auth required
+      // This is the core anonymous messaging feature
+      allow create: if request.resource.data.keys().hasAll([
+                         'content', 'recipientId', 'recipientUsername', 'createdAt'
+                       ])
+                    && request.resource.data.content is string
+                    && request.resource.data.content.size() >= 1
+                    && request.resource.data.content.size() <= 500
+                    && request.resource.data.recipientId is string
+                    && request.resource.data.recipientUsername is string
+                    && request.resource.data.keys().size() == 4;
+
+      // Recipient or admin can delete messages
+      allow delete: if request.auth != null
+                    && (resource.data.recipientId == request.auth.uid
+                        || request.auth.token.email == "admin@inkognito.com");
+
+      // Recipient can update reaction only
+      allow update: if request.auth != null
+                    && resource.data.recipientId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reaction"]);
+    }
+
+    // ============================================
+    // CATCH-ALL: Deny everything else
+    // ============================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

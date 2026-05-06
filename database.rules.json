@@ -1,0 +1,60 @@
+{
+  "rules": {
+    // ============================================
+    // NOTIFICATIONS NODE
+    // Used for real-time new message notifications
+    // Structure: /notifications/{userId}/{notificationId}
+    // ============================================
+    "notifications": {
+      "$userId": {
+        // Only the authenticated user can read their own notifications
+        ".read": "auth !== null && auth.uid === $userId",
+
+        "$notificationId": {
+          // Anyone can write a notification (triggered when sending anonymous message)
+          // Validate structure: must have messageId, timestamp, and read status
+          ".write": true,
+          ".validate": "newData.hasChildren(['messageId', 'createdAt']) && newData.child('messageId').isString() && newData.child('messageId').val().length > 0 && newData.child('messageId').val().length <= 128"
+        }
+      }
+    },
+
+    // ============================================
+    // PRESENCE NODE
+    // Used for online/offline status indicators
+    // Structure: /presence/{userId}
+    // ============================================
+    "presence": {
+      "$userId": {
+        // Anyone can read presence (public online status)
+        ".read": true,
+        // Only the authenticated user can write their own presence
+        ".write": "auth !== null && auth.uid === $userId",
+        ".validate": "newData.hasChildren(['online', 'lastSeen']) && newData.child('online').isBoolean()"
+      }
+    },
+
+    // ============================================
+    // UNREAD COUNTS NODE
+    // Used for badge counters on dashboard
+    // Structure: /unreadCounts/{userId}
+    // ============================================
+    "unreadCounts": {
+      "$userId": {
+        // Only the owner can read their unread count
+        ".read": "auth !== null && auth.uid === $userId",
+        // Anyone can increment (on new message), owner can reset
+        ".write": true,
+        ".validate": "newData.isNumber() && newData.val() >= 0"
+      }
+    },
+
+    // ============================================
+    // CATCH-ALL: Deny everything else
+    // ============================================
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

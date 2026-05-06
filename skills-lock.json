@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "frontend-developer": {
+      "source": "benjaming/ai-skills",
+      "sourceType": "github",
+      "skillPath": "frontend-developer/SKILL.md",
+      "computedHash": "5f7ffe50891bbe539ec957d2b6da7971ebb37ef6038a44fc64f9765b74f255f5"
+    }
+  }
+}
