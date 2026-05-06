@@ -5,9 +5,14 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/components/ToastProvider";
+import { generateQRCodeURL } from "@/lib/qrcode";
+import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function SettingsPage() {
-  const { user, userProfile, loading, updateProfile } = useAuth();
+  const { user, userProfile, loading, updateProfile, signOut } = useAuth();
+  const { toast } = useToast();
   const router = useRouter();
 
   const [displayName, setDisplayName] = useState("");
@@ -16,6 +21,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -409,6 +416,139 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* QR Code Section */}
+        <div
+          className="mt-8"
+          style={{
+            backgroundColor: "#141414",
+            border: "1px solid rgba(139, 92, 246, 0.1)",
+            borderRadius: "16px",
+            padding: "24px",
+          }}
+        >
+          <h4
+            className="font-body text-xs font-extrabold mb-4"
+            style={{ color: "#6B7280", letterSpacing: "0.2px" }}
+          >
+            YOUR QR CODE
+          </h4>
+          <p className="font-body text-xs mb-4" style={{ color: "#6B7280" }}>
+            Share this QR code for people to send you anonymous messages
+          </p>
+          <div className="flex justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={generateQRCodeURL(
+                `${typeof window !== "undefined" ? window.location.origin : ""}/u/${userProfile.username}`
+              )}
+              alt="Your Inkognito QR Code"
+              width={200}
+              height={200}
+              className="rounded-xl"
+              style={{ border: "2px solid rgba(139, 92, 246, 0.3)" }}
+            />
+          </div>
+          <p className="font-body text-xs text-center mt-3" style={{ color: "#A78BFA" }}>
+            Scan to send @{userProfile.username} a message
+          </p>
+        </div>
+
+        {/* Danger Zone */}
+        <div
+          className="mt-8 mb-10"
+          style={{
+            backgroundColor: "#141414",
+            border: "1px solid rgba(239, 68, 68, 0.2)",
+            borderRadius: "16px",
+            padding: "24px",
+          }}
+        >
+          <h4
+            className="font-body text-xs font-extrabold mb-2"
+            style={{ color: "#EF4444", letterSpacing: "0.2px" }}
+          >
+            DANGER ZONE
+          </h4>
+          <p className="font-body text-xs mb-4" style={{ color: "#6B7280" }}>
+            Permanently delete your account and all messages. This cannot be undone.
+          </p>
+          {!deleteConfirm ? (
+            <button
+              onClick={() => setDeleteConfirm(true)}
+              className="font-body text-sm font-bold cursor-pointer transition-all duration-200"
+              style={{
+                backgroundColor: "transparent",
+                color: "#EF4444",
+                padding: "12px 24px",
+                borderRadius: "28px",
+                border: "2px solid rgba(239, 68, 68, 0.4)",
+              }}
+            >
+              Delete my account
+            </button>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p className="font-body text-sm font-bold" style={{ color: "#EF4444" }}>
+                Are you sure? This will delete everything.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    setDeleting(true);
+                    try {
+                      // Delete all user's messages
+                      const msgsQ = query(collection(db, "messages"), where("recipientId", "==", user!.uid));
+                      const msgsSnap = await getDocs(msgsQ);
+                      for (const d of msgsSnap.docs) {
+                        await deleteDoc(doc(db, "messages", d.id));
+                      }
+                      // Delete username reservation
+                      if (userProfile.username) {
+                        await deleteDoc(doc(db, "usernames", userProfile.username)).catch(() => {});
+                      }
+                      // Delete user profile
+                      await deleteDoc(doc(db, "users", user!.uid));
+                      // Delete Firebase Auth account
+                      await user!.delete();
+                      toast("Account deleted. Goodbye! 👋", "info");
+                      router.push("/");
+                    } catch (err) {
+                      console.error("Delete error:", err);
+                      toast("Failed to delete. You may need to re-login first.", "error");
+                      setDeleting(false);
+                      setDeleteConfirm(false);
+                    }
+                  }}
+                  disabled={deleting}
+                  className="font-body text-sm font-bold cursor-pointer transition-all duration-200 disabled:opacity-50"
+                  style={{
+                    backgroundColor: "#EF4444",
+                    color: "#FFFFFF",
+                    padding: "12px 24px",
+                    borderRadius: "28px",
+                    border: "none",
+                  }}
+                >
+                  {deleting ? "Deleting..." : "Yes, delete everything"}
+                </button>
+                <button
+                  onClick={() => setDeleteConfirm(false)}
+                  className="font-body text-sm font-bold cursor-pointer"
+                  style={{
+                    backgroundColor: "transparent",
+                    color: "#FFFFFF",
+                    padding: "12px 24px",
+                    borderRadius: "28px",
+                    border: "2px solid rgba(255,255,255,0.3)",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

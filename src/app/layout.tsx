@@ -27,7 +27,9 @@ export const metadata: Metadata = {
     "Nigeria's boldest anonymous messaging platform. Send and receive anonymous messages, confessions, and real talk — no judgment, no filters.",
   icons: {
     icon: "/favicon.png",
+    apple: "/favicon.png",
   },
+  manifest: "/manifest.json",
   openGraph: {
     title: "Inkognito — Say it. Anonymously.",
     description:

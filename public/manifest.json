@@ -1,0 +1,21 @@
+{
+  "name": "Inkognito",
+  "short_name": "Inkognito",
+  "description": "Nigeria's boldest anonymous messaging platform. Say it. Anonymously.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0A",
+  "theme_color": "#8B5CF6",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
