@@ -75,7 +75,8 @@ service cloud.firestore {
                     && request.resource.data.content.size() <= 500
                     && request.resource.data.recipientId is string
                     && request.resource.data.recipientUsername is string
-                    && request.resource.data.keys().size() == 4;
+                    && request.resource.data.keys().size() >= 4
+                    && request.resource.data.keys().size() <= 6;
 
       // Recipient or admin can delete messages
       allow delete: if request.auth != null

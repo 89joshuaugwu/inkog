@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Plus_Jakarta_Sans } from "next/font/google";
 import { AuthProvider } from "@/context/AuthContext";
 import { ToastProvider } from "@/components/ToastProvider";
+import Navbar from "@/components/Navbar";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -30,6 +31,9 @@ export const metadata: Metadata = {
     apple: "/favicon.png",
   },
   manifest: "/manifest.json",
+  verification: {
+    google: "F3WW92_FNlQviz77sKTnTL-EnbLbWuh0P1snZC5e72o",
+  },
   openGraph: {
     title: "Inkognito — Say it. Anonymously.",
     description:
@@ -51,6 +55,7 @@ export default function RootLayout({
     >
       <body className="min-h-screen bg-background text-white antialiased">
         <AuthProvider>
+          <Navbar />
           <ToastProvider>{children}</ToastProvider>
         </AuthProvider>
       </body>

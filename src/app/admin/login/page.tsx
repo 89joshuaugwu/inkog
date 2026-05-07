@@ -7,7 +7,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
 // Must match the admin page
-const ADMIN_EMAILS = ["admin@inkognito.com"];
+const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "admin@inkognito.com").split(",");
 
 export default function AdminLoginPage() {
   const router = useRouter();

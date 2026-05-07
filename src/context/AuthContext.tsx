@@ -26,6 +26,7 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { auth, googleProvider, db } from "@/lib/firebase";
+import { sendEmail } from "@/lib/sendEmail";
 
 export interface UserProfile {
   uid: string;
@@ -187,6 +188,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           : null
       );
+
+      // Send welcome email (fire-and-forget)
+      sendEmail("welcome", user.email || "", {
+        displayName: data.displayName,
+        username: usernameLower,
+        email: user.email || "",
+      });
     },
     [user, checkUsernameAvailable]
   );
@@ -208,7 +216,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signInWithGoogle() {
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      await fetchProfile(result.user);
+      const profile = await fetchProfile(result.user);
+
+      // Send login alert for existing users (fire-and-forget)
+      if (profile && profile.onboardingComplete && result.user.email) {
+        sendEmail("login_alert", result.user.email, {
+          displayName: profile.displayName || result.user.displayName || "",
+        });
+      }
     } catch (error) {
       console.error("Google sign-in error:", error);
       throw error;

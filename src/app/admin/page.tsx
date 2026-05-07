@@ -22,7 +22,7 @@ import {
 import { db } from "@/lib/firebase";
 
 // Admin emails — must match admin/login/page.tsx
-const ADMIN_EMAILS = ["admin@inkognito.com"];
+const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "admin@inkognito.com").split(",");
 
 interface UserRow {
   uid: string;

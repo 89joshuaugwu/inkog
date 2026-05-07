@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ToastProvider";
 import { generateQRCodeURL } from "@/lib/qrcode";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -23,6 +23,7 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -88,54 +89,52 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0A0A0A" }}>
-      {/* Top Nav */}
-      <nav
-        className="sticky top-0 z-50 flex items-center justify-between px-6 h-16 border-b"
-        style={{
-          backgroundColor: "rgba(10, 10, 10, 0.92)",
-          backdropFilter: "blur(16px)",
-          borderBottomColor: "rgba(139, 92, 246, 0.15)",
-        }}
-      >
-        <Link href="/" className="flex items-center gap-2.5 no-underline">
-          <Image
-            src="/logo.png"
-            alt="Inkognito icon"
-            width={36}
-            height={36}
-            priority
-          />
-          <span
-            className="font-display text-white font-bold text-[22px]"
-            style={{ letterSpacing: "-0.5px" }}
-          >
-            Inkognito
-          </span>
-        </Link>
-        <Link
-          href="/dashboard"
-          className="font-body text-sm font-bold no-underline transition-colors duration-200"
-          style={{ color: "rgba(255,255,255,0.6)" }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#FFFFFF")}
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.color = "rgba(255,255,255,0.6)")
-          }
-        >
-          ← Dashboard
-        </Link>
-      </nav>
-
       {/* Settings Content */}
       <div className="max-w-[600px] mx-auto px-6 py-10">
         <h1
           className="font-display font-bold text-white mb-8"
-          style={{
-            fontSize: "clamp(28px, 5vw, 36px)",
-            letterSpacing: "-1px",
-          }}
+          style={{ fontSize: "clamp(28px, 5vw, 36px)", letterSpacing: "-1px" }}
         >
           Settings
         </h1>
+
+        {/* Profile Photo */}
+        <div className="mb-8" style={{ backgroundColor: "#141414", border: "1px solid rgba(139,92,246,0.1)", borderRadius: "16px", padding: "24px" }}>
+          <h4 className="font-body text-xs font-extrabold mb-4" style={{ color: "#6B7280", letterSpacing: "0.2px" }}>PROFILE PHOTO</h4>
+          <div className="flex items-center gap-6">
+            {userProfile.photoURL ? (
+              <Image src={userProfile.photoURL} alt={userProfile.displayName} width={80} height={80} className="rounded-full w-20 h-20 object-cover" />
+            ) : (
+              <div className="flex items-center justify-center font-display font-bold text-white text-2xl" style={{ width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg, #7C3AED, #06B6D4)" }}>
+                {userProfile.displayName?.charAt(0) || "?"}
+              </div>
+            )}
+            <div>
+              <label className="font-body text-sm font-bold cursor-pointer transition-all duration-200 inline-block" style={{ backgroundColor: "rgba(139,92,246,0.15)", color: "#A78BFA", padding: "10px 20px", borderRadius: "12px", border: "1px solid rgba(139,92,246,0.3)" }}>
+                {uploading ? "Uploading..." : "Change photo"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 5 * 1024 * 1024) { toast("Image must be under 5MB", "error"); return; }
+                    setUploading(true);
+                    try {
+                      const url = await uploadToCloudinary(file);
+                      await updateProfile({ photoURL: url });
+                      toast("Photo updated!", "success");
+                    } catch { toast("Upload failed", "error"); }
+                    setUploading(false);
+                  }}
+                />
+              </label>
+              <p className="font-body text-xs mt-2" style={{ color: "#6B7280" }}>JPG, PNG, WebP. Max 5MB.</p>
+            </div>
+          </div>
+        </div>
 
         {/* Share Link Section */}
         <div
