@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
+  const { user, userProfile } = useAuth();
+  const isLoggedIn = !!user && !!userProfile?.onboardingComplete;
 
   return (
     <footer
@@ -49,49 +52,20 @@ export default function Footer() {
               <h4 className="font-body text-xs font-extrabold uppercase tracking-widest text-white">
                 Product
               </h4>
-              <Link
-                href="#features"
-                className="font-body text-sm no-underline transition-colors duration-150"
-                style={{ color: "#6B7280" }}
-                onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) =>
-                  ((e.target as HTMLAnchorElement).style.color = "#A78BFA")
-                }
-                onMouseLeave={(e: React.MouseEvent<HTMLAnchorElement>) =>
-                  ((e.target as HTMLAnchorElement).style.color = "#6B7280")
-                }
-              >
-                Features
-              </Link>
-              <Link
-                href="#how-it-works"
-                className="font-body text-sm no-underline transition-colors duration-150"
-                style={{ color: "#6B7280" }}
-                onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) =>
-                  ((e.target as HTMLAnchorElement).style.color = "#A78BFA")
-                }
-                onMouseLeave={(e: React.MouseEvent<HTMLAnchorElement>) =>
-                  ((e.target as HTMLAnchorElement).style.color = "#6B7280")
-                }
-              >
-                How it works
-              </Link>
+              <FooterLink href="#features">Features</FooterLink>
+              <FooterLink href="#how-it-works">How it works</FooterLink>
+              {isLoggedIn ? (
+                <FooterLink href="/dashboard">Dashboard</FooterLink>
+              ) : (
+                <FooterLink href="/login">Get Started</FooterLink>
+              )}
             </div>
             <div className="flex flex-col gap-4">
               <h4 className="font-body text-xs font-extrabold uppercase tracking-widest text-white">
                 Legal
               </h4>
-              <span
-                className="font-body text-sm cursor-default"
-                style={{ color: "#6B7280" }}
-              >
-                Privacy Policy
-              </span>
-              <span
-                className="font-body text-sm cursor-default"
-                style={{ color: "#6B7280" }}
-              >
-                Terms of Service
-              </span>
+              <FooterLink href="/privacy">Privacy Policy</FooterLink>
+              <FooterLink href="/terms">Terms of Service</FooterLink>
             </div>
           </div>
         </div>
@@ -104,11 +78,35 @@ export default function Footer() {
           <p className="font-body text-xs" style={{ color: "#6B7280" }}>
             © {currentYear} Inkognito. All rights reserved.
           </p>
-          <p className="font-body text-xs" style={{ color: "#6B7280" }}>
-            Made with 💜 in Nigeria
-          </p>
+          <div className="flex items-center gap-3">
+            <Link href="/privacy" className="font-body text-xs no-underline transition-colors duration-150" style={{ color: "#6B7280" }}>
+              Privacy
+            </Link>
+            <span style={{ color: "rgba(139,92,246,0.3)" }}>·</span>
+            <Link href="/terms" className="font-body text-xs no-underline transition-colors duration-150" style={{ color: "#6B7280" }}>
+              Terms
+            </Link>
+            <span style={{ color: "rgba(139,92,246,0.3)" }}>·</span>
+            <span className="font-body text-xs" style={{ color: "#6B7280" }}>
+              Made with 💜 in Nigeria
+            </span>
+          </div>
         </div>
       </div>
     </footer>
+  );
+}
+
+function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="font-body text-sm no-underline transition-colors duration-150"
+      style={{ color: "#6B7280" }}
+      onMouseEnter={(e) => (e.currentTarget.style.color = "#A78BFA")}
+      onMouseLeave={(e) => (e.currentTarget.style.color = "#6B7280")}
+    >
+      {children}
+    </Link>
   );
 }

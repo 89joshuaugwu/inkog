@@ -3,6 +3,8 @@ import { Space_Grotesk, Plus_Jakarta_Sans } from "next/font/google";
 import { AuthProvider } from "@/context/AuthContext";
 import { ToastProvider } from "@/components/ToastProvider";
 import Navbar from "@/components/Navbar";
+import NotificationSetup from "@/components/NotificationSetup";
+import InstallPrompt from "@/components/InstallPrompt";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -56,9 +58,14 @@ export default function RootLayout({
       <body className="min-h-screen bg-background text-white antialiased">
         <AuthProvider>
           <Navbar />
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            {children}
+            <NotificationSetup />
+            <InstallPrompt />
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>
   );
 }
+

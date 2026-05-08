@@ -97,6 +97,16 @@ export default function ProfilePage() {
         });
       }
 
+      // Push notification (fire-and-forget)
+      fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientUid: profile.uid,
+          messagePreview: message.trim(),
+        }),
+      }).catch(() => {});
+
       if (showName && senderName.trim()) {
         localStorage.setItem("inkognito_sender_name", senderName.trim());
       }
