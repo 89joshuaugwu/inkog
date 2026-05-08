@@ -8,84 +8,98 @@ import Image from "next/image";
 
 /**
  * Notification permission banner + FCM setup.
- * Shows a custom UI banner first, then triggers browser permission
- * on user click (required by modern browsers — programmatic calls are blocked).
+ * Shows a custom UI banner, triggers browser permission on click.
  * Supports multi-device: adds token to fcmTokens[] array.
+ * Shows visible success/error feedback.
  */
 export default function NotificationSetup() {
   const { user, userProfile } = useAuth();
   const [showBanner, setShowBanner] = useState(false);
-  const [setting, setSetting] = useState(false);
+  const [status, setStatus] = useState<"idle" | "requesting" | "success" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     if (!user || !userProfile?.onboardingComplete) return;
-
-    // Don't show if browser doesn't support notifications
     if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
 
-    // Don't show if already granted (just register token silently)
+    // Already granted — register token silently
     if (Notification.permission === "granted") {
       registerToken();
       return;
     }
 
-    // Don't show if already denied
+    // Already denied — nothing we can do
     if (Notification.permission === "denied") return;
 
-    // Don't show if user dismissed our banner before
+    // User dismissed our banner this session
     if (sessionStorage.getItem("inkognito_notif_dismissed")) return;
 
-    // Show our custom banner after a short delay
     const timer = setTimeout(() => setShowBanner(true), 3000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, userProfile]);
 
   const registerToken = useCallback(async () => {
-    try {
-      const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
-      await navigator.serviceWorker.ready;
+    if (!user) throw new Error("No user");
 
-      const { getMessaging, getToken } = await import("firebase/messaging");
-      const { default: app } = await import("@/lib/firebase");
+    // Register the service worker
+    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+    await navigator.serviceWorker.ready;
 
-      const messaging = getMessaging(app);
-      const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+    // Dynamic import firebase/messaging
+    const { getMessaging, getToken } = await import("firebase/messaging");
+    const { default: app } = await import("@/lib/firebase");
 
-      if (!vapidKey) {
-        console.warn("[FCM] VAPID key not configured");
-        return;
-      }
+    const messaging = getMessaging(app);
+    const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 
-      const token = await getToken(messaging, {
-        vapidKey,
-        serviceWorkerRegistration: registration,
-      });
-
-      if (token && user) {
-        await updateDoc(doc(db, "users", user.uid), {
-          fcmTokens: arrayUnion(token),
-        });
-        sessionStorage.setItem("inkognito_fcm_token", token);
-      }
-    } catch (err) {
-      console.warn("[FCM] Token registration failed:", err);
+    if (!vapidKey) {
+      throw new Error("VAPID key not configured. Add NEXT_PUBLIC_FIREBASE_VAPID_KEY to environment.");
     }
+
+    const token = await getToken(messaging, {
+      vapidKey,
+      serviceWorkerRegistration: registration,
+    });
+
+    if (!token) {
+      throw new Error("Failed to get FCM token. Browser may not support push notifications.");
+    }
+
+    // Save to Firestore
+    await updateDoc(doc(db, "users", user.uid), {
+      fcmTokens: arrayUnion(token),
+    });
+
+    // Store for logout cleanup
+    sessionStorage.setItem("inkognito_fcm_token", token);
+
+    return token;
   }, [user]);
 
   async function handleEnable() {
-    setSetting(true);
+    setStatus("requesting");
+    setErrorMsg("");
+
     try {
-      // This works because it's triggered by a user click
       const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        await registerToken();
+
+      if (permission !== "granted") {
+        setStatus("error");
+        setErrorMsg("Permission denied. Enable in browser settings.");
+        setTimeout(() => setShowBanner(false), 3000);
+        return;
       }
+
+      await registerToken();
+      setStatus("success");
+      setTimeout(() => setShowBanner(false), 2000);
     } catch (err) {
-      console.warn("[FCM] Permission request failed:", err);
+      console.error("[FCM] Setup failed:", err);
+      setStatus("error");
+      setErrorMsg(err instanceof Error ? err.message : "Setup failed. Check console.");
+      setTimeout(() => setShowBanner(false), 5000);
     }
-    setSetting(false);
-    setShowBanner(false);
   }
 
   function handleDismiss() {
@@ -101,52 +115,83 @@ export default function NotificationSetup() {
       style={{ animation: "fade-in-up 0.3s ease-out" }}
     >
       <div
-        className="flex items-center gap-3 px-4 py-3"
+        className="flex flex-col gap-2 px-4 py-3"
         style={{
           backgroundColor: "rgba(20,20,20,0.97)",
           backdropFilter: "blur(16px)",
-          border: "1px solid rgba(139,92,246,0.3)",
+          border: `1px solid ${status === "error" ? "rgba(239,68,68,0.4)" : status === "success" ? "rgba(132,204,22,0.4)" : "rgba(139,92,246,0.3)"}`,
           borderRadius: 16,
           boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(139,92,246,0.1)",
+          transition: "border-color 0.3s",
         }}
       >
-        <Image src="/logo.png" alt="Inkognito" width={32} height={32} className="rounded-lg flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="font-body text-sm text-white font-bold">Enable notifications</p>
-          <p className="font-body text-xs" style={{ color: "#6B7280" }}>
-            Get notified when someone messages you
-          </p>
+        <div className="flex items-center gap-3">
+          <Image src="/logo.png" alt="Inkognito" width={32} height={32} className="rounded-lg flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            {status === "success" ? (
+              <p className="font-body text-sm font-bold" style={{ color: "#84CC16" }}>
+                Notifications enabled ✅
+              </p>
+            ) : status === "error" ? (
+              <p className="font-body text-sm font-bold" style={{ color: "#EF4444" }}>
+                Setup failed ❌
+              </p>
+            ) : (
+              <>
+                <p className="font-body text-sm text-white font-bold">Enable notifications</p>
+                <p className="font-body text-xs" style={{ color: "#6B7280" }}>
+                  Know when someone messages you
+                </p>
+              </>
+            )}
+          </div>
+          {status === "idle" && (
+            <>
+              <button
+                onClick={handleEnable}
+                className="font-body text-xs font-bold cursor-pointer transition-all duration-200"
+                style={{
+                  backgroundColor: "#8B5CF6",
+                  color: "#FFFFFF",
+                  padding: "8px 14px",
+                  borderRadius: 20,
+                  border: "none",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Enable
+              </button>
+              <button
+                onClick={handleDismiss}
+                className="cursor-pointer flex-shrink-0"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#6B7280",
+                  fontSize: 18,
+                  padding: "4px",
+                  lineHeight: 1,
+                }}
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </>
+          )}
+          {status === "requesting" && (
+            <div
+              className="w-5 h-5 rounded-full border-2 animate-spin flex-shrink-0"
+              style={{ borderColor: "#8B5CF6", borderTopColor: "transparent" }}
+            />
+          )}
         </div>
-        <button
-          onClick={handleEnable}
-          disabled={setting}
-          className="font-body text-xs font-bold cursor-pointer transition-all duration-200 disabled:opacity-50"
-          style={{
-            backgroundColor: "#8B5CF6",
-            color: "#FFFFFF",
-            padding: "8px 14px",
-            borderRadius: 20,
-            border: "none",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {setting ? "..." : "Enable"}
-        </button>
-        <button
-          onClick={handleDismiss}
-          className="cursor-pointer transition-all duration-200 flex-shrink-0"
-          style={{
-            background: "none",
-            border: "none",
-            color: "#6B7280",
-            fontSize: 18,
-            padding: "4px",
-            lineHeight: 1,
-          }}
-          aria-label="Dismiss"
-        >
-          ×
-        </button>
+
+        {/* Error detail */}
+        {status === "error" && errorMsg && (
+          <p className="font-body text-xs px-1" style={{ color: "rgba(239,68,68,0.8)" }}>
+            {errorMsg}
+          </p>
+        )}
       </div>
     </div>
   );
