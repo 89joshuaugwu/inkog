@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -75,7 +76,7 @@ export default function InstallPrompt() {
           boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(139,92,246,0.1)",
         }}
       >
-        <span style={{ fontSize: 28 }}>👻</span>
+        <Image src="/logo.png" alt="Inkognito" width={32} height={32} className="rounded-lg" />
         <div className="flex-1 min-w-0">
           {installed ? (
             <p className="font-body text-sm text-white font-bold">Installed! ✅</p>
