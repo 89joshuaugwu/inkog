@@ -75,13 +75,10 @@ export async function POST(req: NextRequest) {
       html: email.html,
     });
 
-    // Send admin notification copy if applicable
+    // Send admin notification for new user signups only (not messages — user privacy)
     const adminEmail = process.env.ADMIN_EMAIL;
-    if (adminEmail && (type === "welcome" || type === "new_message")) {
-      const adminTemplate =
-        type === "welcome"
-          ? adminNewUserEmail(data.displayName, data.email || to, data.username)
-          : adminNewMessageEmail(data.recipientUsername || data.username, data.messagePreview);
+    if (adminEmail && type === "welcome") {
+      const adminTemplate = adminNewUserEmail(data.displayName, data.email || to, data.username);
 
       await transporter.sendMail({
         from: `"Inkognito Admin 👻" <${process.env.SMTP_EMAIL}>`,
