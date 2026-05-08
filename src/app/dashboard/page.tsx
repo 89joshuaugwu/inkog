@@ -150,9 +150,9 @@ export default function DashboardPage() {
       if (!userProfile) return;
       setSharingId(msg.id);
       try {
-        await shareMessageImage(msg.content, userProfile.username);
+        await shareMessageImage(msg.content, userProfile.username, msg.messageType);
       } catch {
-        await downloadMessageImage(msg.content, userProfile.username);
+        await downloadMessageImage(msg.content, userProfile.username, msg.messageType);
       }
       setSharingId(null);
     },

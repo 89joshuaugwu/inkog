@@ -6,14 +6,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useToast } from "@/components/ToastProvider";
 import {
-  collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  serverTimestamp,
+  collection, query, where, getDocs,
+  addDoc, serverTimestamp,
 } from "firebase/firestore";
-import { ref, push, set, get } from "firebase/database";
+import { ref, set, get } from "firebase/database";
 import { db, rtdb } from "@/lib/firebase";
 import { sendEmail } from "@/lib/sendEmail";
 
@@ -38,10 +34,10 @@ export default function ProfilePage() {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  const [charCount, setCharCount] = useState(0);
   const [cooldown, setCooldown] = useState(false);
   const [showName, setShowName] = useState(false);
   const [senderName, setSenderName] = useState("");
+  const [focused, setFocused] = useState(false);
 
   const MAX_CHARS = 500;
 
@@ -53,32 +49,29 @@ export default function ProfilePage() {
   useEffect(() => {
     async function fetchProfile() {
       try {
-        const usersRef = collection(db, "users");
-        const q = query(usersRef, where("username", "==", username));
+        const q = query(collection(db, "users"), where("username", "==", username));
         const snapshot = await getDocs(q);
-
         if (snapshot.empty) {
           setNotFound(true);
         } else {
           setProfile({ uid: snapshot.docs[0].id, ...snapshot.docs[0].data() } as UserProfile);
         }
       } catch (error) {
-        console.error("Error fetching profile:", error);
+        console.error(error);
         setNotFound(true);
       }
       setProfileLoading(false);
     }
-
     if (username) fetchProfile();
   }, [username]);
 
-  async function handleSendMessage(e: React.FormEvent) {
+  async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!message.trim() || !profile || sending || cooldown) return;
 
     setSending(true);
     try {
-      const docRef = await addDoc(collection(db, "messages"), {
+      await addDoc(collection(db, "messages"), {
         content: message.trim(),
         recipientId: profile.uid,
         recipientUsername: profile.username,
@@ -87,17 +80,14 @@ export default function ProfilePage() {
         createdAt: serverTimestamp(),
       });
 
+      // Unread count
       try {
-        const notifRef = ref(rtdb, `notifications/${profile.uid}`);
-        await push(notifRef, { messageId: docRef.id, createdAt: Date.now() });
         const countRef = ref(rtdb, `unreadCounts/${profile.uid}`);
-        const snapshot = await get(countRef);
-        await set(countRef, (snapshot.val() || 0) + 1);
-      } catch {
-        // RTDB notification is non-critical
-      }
+        const snap = await get(countRef);
+        await set(countRef, (snap.val() || 0) + 1);
+      } catch { /* non-critical */ }
 
-      // Email notification
+      // Email
       if (profile.email) {
         sendEmail("new_message", profile.email, {
           displayName: profile.displayName,
@@ -113,103 +103,242 @@ export default function ProfilePage() {
 
       setSent(true);
       setMessage("");
-      setCharCount(0);
       setCooldown(true);
       setTimeout(() => setCooldown(false), 10000);
     } catch (error) {
-      console.error("Error sending message:", error);
-      toast("Failed to send message. Please try again.", "error");
+      console.error(error);
+      toast("Failed to send. Try again.", "error");
     }
     setSending(false);
-  }
-
-  function handleMessageChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    const val = e.target.value;
-    if (val.length <= MAX_CHARS) {
-      setMessage(val);
-      setCharCount(val.length);
-    }
   }
 
   if (profileLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: "#0A0A0A" }}>
-        <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#8B5CF6", borderTopColor: "transparent" }} />
+        <div className="w-10 h-10 rounded-full border-2 animate-spin"
+          style={{ borderColor: "#8B5CF6", borderTopColor: "transparent" }} />
       </div>
     );
   }
 
   if (notFound) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-4" style={{ backgroundColor: "#0A0A0A" }}>
-        <div style={{ fontSize: "80px", opacity: 0.5, marginBottom: "24px" }}>👻</div>
-        <h1 className="font-display font-bold text-white mb-3" style={{ fontSize: "32px", letterSpacing: "-1px" }}>User not found</h1>
-        <p className="font-body text-sm mb-8" style={{ color: "#6B7280" }}>This Inkognito profile doesn&apos;t exist</p>
-        <Link href="/" className="font-body text-sm font-bold no-underline" style={{ backgroundColor: "#8B5CF6", color: "#FFFFFF", padding: "14px 28px", borderRadius: "28px", boxShadow: "0px 0px 24px rgba(139,92,246,0.4)" }}>Go home</Link>
+      <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center"
+        style={{ backgroundColor: "#0A0A0A" }}>
+        <div style={{ fontSize: 80, opacity: 0.4, marginBottom: 24 }}>👻</div>
+        <h1 className="font-display font-bold text-white mb-3"
+          style={{ fontSize: "clamp(24px,5vw,36px)", letterSpacing: "-1px" }}>
+          Profile not found
+        </h1>
+        <p className="font-body text-sm mb-8" style={{ color: "#6B7280" }}>
+          This Inkognito profile doesn&apos;t exist
+        </p>
+        <Link href="/"
+          className="font-body text-sm font-bold no-underline"
+          style={{ backgroundColor: "#8B5CF6", color: "#FFFFFF", padding: "14px 32px", borderRadius: 28, boxShadow: "0 0 24px rgba(139,92,246,0.4)" }}>
+          Go home
+        </Link>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0A0A0A" }}>
-      {/* Profile Content */}
-      <div className="flex-1 flex items-center justify-center px-4 py-10">
-        <div className="w-full max-w-lg">
-          {/* Profile Header */}
-          <div className="text-center mb-8">
-            {profile?.photoURL ? (
-              <Image src={profile.photoURL} alt={profile.displayName} width={80} height={80} className="rounded-full mx-auto mb-4 w-20 h-20 object-cover" style={{ border: "3px solid rgba(139,92,246,0.4)" }} />
-            ) : (
-              <div className="mx-auto mb-4 flex items-center justify-center font-display font-bold text-white text-2xl" style={{ width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg, #7C3AED, #06B6D4)" }}>
-                {profile?.displayName?.charAt(0) || "?"}
-              </div>
-            )}
-            <h1 className="font-display font-bold text-white mb-1" style={{ fontSize: "28px", letterSpacing: "-0.5px" }}>{profile?.displayName}</h1>
-            <p className="font-body text-sm" style={{ color: "#6B7280" }}>@{profile?.username}</p>
-            {profile?.bio && (
-              <p className="font-body text-sm mt-3 max-w-sm mx-auto" style={{ color: "rgba(255,255,255,0.7)", lineHeight: "22px" }}>{profile.bio}</p>
-            )}
+  if (sent) {
+    return (
+      <>
+        <style>{`
+          @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+            70% { transform: scale(1.05) translateY(-4px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+          }
+          @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+          }
+        `}</style>
+        <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center"
+          style={{ backgroundColor: "#0A0A0A" }}>
+          <div style={{ animation: "popIn 0.5s cubic-bezier(0.34,1.56,0.64,1)", fontSize: 80, marginBottom: 24 }}>
+            🎉
           </div>
+          <h1 className="font-display font-bold text-white mb-2"
+            style={{ fontSize: "clamp(22px,5vw,32px)", letterSpacing: "-1px" }}>
+            Sent anonymously!
+          </h1>
+          <p className="font-body text-sm mb-8" style={{ color: "#6B7280", maxWidth: 280 }}>
+            {profile?.displayName?.split(" ")[0]} will never know it was you 👻
+          </p>
+          <div className="flex flex-col gap-3 w-full" style={{ maxWidth: 320 }}>
+            <button
+              onClick={() => setSent(false)}
+              disabled={cooldown}
+              className="font-body text-sm font-bold cursor-pointer disabled:opacity-40 transition-all duration-200"
+              style={{ backgroundColor: "#8B5CF6", color: "#FFFFFF", padding: "16px", borderRadius: 28, border: "none", boxShadow: "0 0 24px rgba(139,92,246,0.4)", minHeight: 52 }}>
+              {cooldown ? "Wait a moment..." : "Send another 👻"}
+            </button>
+            <Link href="/login"
+              className="font-body text-sm no-underline text-center transition-all duration-200"
+              style={{ color: "#A78BFA", padding: "14px", borderRadius: 28, border: "1px solid rgba(139,92,246,0.25)" }}>
+              Create your own Inkognito →
+            </Link>
+          </div>
+        </div>
+      </>
+    );
+  }
 
-          {/* Message Form */}
-          {sent ? (
-            <div className="text-center" style={{ backgroundColor: "#141414", border: "1px solid rgba(132,204,22,0.3)", borderRadius: "20px", padding: "48px 32px" }}>
-              <div style={{ fontSize: "64px", marginBottom: "16px" }}>🎉</div>
-              <h2 className="font-display font-bold text-white mb-2" style={{ fontSize: "24px", letterSpacing: "-0.5px" }}>Message sent!</h2>
-              <p className="font-body text-sm mb-8" style={{ color: "#6B7280" }}>Your anonymous message has been delivered</p>
-              <div className="flex flex-col gap-3 items-center">
-                <button onClick={() => setSent(false)} disabled={cooldown} className="font-body text-sm font-bold cursor-pointer disabled:opacity-50" style={{ backgroundColor: "#8B5CF6", color: "#FFFFFF", padding: "14px 28px", borderRadius: "28px", border: "none", boxShadow: "0px 0px 24px rgba(139,92,246,0.4)" }}>
-                  {cooldown ? "Wait a moment..." : "Send another"}
-                </button>
-                <Link href="/login" className="font-body text-xs no-underline" style={{ color: "#8B5CF6" }}>Create your own Inkognito →</Link>
+  const charLeft = MAX_CHARS - message.length;
+  const charPct = (message.length / MAX_CHARS) * 100;
+
+  return (
+    <>
+      <style>{`
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(24px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes ghostFloat {
+          0%, 100% { transform: translateY(0px) rotate(-3deg); }
+          50% { transform: translateY(-8px) rotate(3deg); }
+        }
+        .page-fade { animation: fadeUp 0.4s ease-out; }
+        .ghost-float { animation: ghostFloat 4s ease-in-out infinite; }
+        .send-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 0 32px rgba(139,92,246,0.6) !important; }
+        .send-btn:active:not(:disabled) { transform: scale(0.98); }
+      `}</style>
+
+      <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0A0A0A" }}>
+        {/* Ambient glow */}
+        <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+          <div style={{
+            position: "absolute", top: "-20%", left: "50%", transform: "translateX(-50%)",
+            width: "70vw", height: "50vh",
+            background: "radial-gradient(ellipse, rgba(139,92,246,0.08) 0%, transparent 70%)",
+          }} />
+        </div>
+
+        <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-12 page-fade">
+          <div className="w-full" style={{ maxWidth: 460 }}>
+
+            {/* Profile header */}
+            <div className="text-center mb-8">
+              <div className="relative inline-block mb-4">
+                {profile?.photoURL ? (
+                  <Image
+                    src={profile.photoURL}
+                    alt={profile.displayName}
+                    width={88}
+                    height={88}
+                    className="rounded-full object-cover"
+                    style={{ width: 88, height: 88, border: "3px solid rgba(139,92,246,0.5)", boxShadow: "0 0 24px rgba(139,92,246,0.3)" }}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center font-display font-bold text-white"
+                    style={{ width: 88, height: 88, borderRadius: "50%", background: "linear-gradient(135deg, #7C3AED, #06B6D4)", fontSize: 32, boxShadow: "0 0 24px rgba(139,92,246,0.4)", border: "3px solid rgba(139,92,246,0.4)" }}>
+                    {profile?.displayName?.charAt(0) || "?"}
+                  </div>
+                )}
+                {/* Ghost badge */}
+                <div className="ghost-float absolute -bottom-2 -right-2 flex items-center justify-center"
+                  style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: "#0A0A0A", border: "2px solid rgba(139,92,246,0.4)", fontSize: 14 }}>
+                  👻
+                </div>
               </div>
+
+              <h1 className="font-display font-bold text-white mb-1"
+                style={{ fontSize: "clamp(22px,5vw,30px)", letterSpacing: "-0.5px" }}>
+                {profile?.displayName}
+              </h1>
+              <p className="font-body text-sm mb-1" style={{ color: "#8B5CF6" }}>
+                @{profile?.username}
+              </p>
+              {profile?.bio && (
+                <p className="font-body text-sm mt-3 mx-auto"
+                  style={{ color: "rgba(255,255,255,0.55)", lineHeight: "22px", maxWidth: 300 }}>
+                  {profile.bio}
+                </p>
+              )}
             </div>
-          ) : (
-            <form onSubmit={handleSendMessage}>
-              <div style={{ backgroundColor: "#FFFFFF", borderRadius: "16px", padding: "24px", boxShadow: "0px 8px 32px rgba(0,0,0,0.24)" }}>
-                <label className="font-body text-sm font-bold block mb-3" style={{ color: "#0A0A0A" }}>
-                  {profile?.prompt || `Send an anonymous message to ${profile?.displayName?.split(" ")[0]}`}
-                </label>
+
+            {/* Anonymous badge */}
+            <div className="flex justify-center mb-6">
+              <span className="font-body font-extrabold"
+                style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.35)", borderRadius: 20, padding: "5px 16px", color: "#A78BFA", fontSize: 12, letterSpacing: "0.5px" }}>
+                👻 Anonymous Message
+              </span>
+            </div>
+
+            {/* Form card */}
+            <form onSubmit={handleSend}>
+              <div style={{
+                backgroundColor: "#111111",
+                border: `1px solid ${focused ? "rgba(139,92,246,0.5)" : "rgba(139,92,246,0.15)"}`,
+                borderRadius: 24,
+                padding: "24px",
+                boxShadow: focused ? "0 0 32px rgba(139,92,246,0.12)" : "none",
+                transition: "all 0.3s ease",
+              }}>
+                <p className="font-body text-sm font-bold mb-4 text-center"
+                  style={{ color: "rgba(255,255,255,0.8)" }}>
+                  {profile?.prompt || `Say something to ${profile?.displayName?.split(" ")[0]} 👀`}
+                </p>
+
+                {/* Textarea */}
                 <div className="relative">
                   <textarea
-                    id="message-textarea"
                     value={message}
-                    onChange={handleMessageChange}
-                    placeholder="Type your anonymous message here... 👀"
-                    className="w-full font-body resize-y outline-none transition-all duration-200"
-                    style={{ backgroundColor: "#F9F9F9", color: "#0A0A0A", fontSize: "16px", fontWeight: 500, lineHeight: "24px", padding: "20px", borderRadius: "16px", border: "2px solid transparent", minHeight: "120px", boxShadow: "0px 4px 16px rgba(0,0,0,0.1)" }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = "#8B5CF6"; e.currentTarget.style.boxShadow = "0px 0px 0px 4px rgba(139,92,246,0.15)"; }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.boxShadow = "0px 4px 16px rgba(0,0,0,0.1)"; }}
+                    onChange={(e) => e.target.value.length <= MAX_CHARS && setMessage(e.target.value)}
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
+                    placeholder="Say anything... they'll never know it was you 👀"
+                    rows={4}
+                    className="w-full font-body text-sm outline-none resize-none"
+                    style={{
+                      backgroundColor: "#0A0A0A",
+                      color: "#FFFFFF",
+                      fontSize: 15,
+                      fontWeight: 400,
+                      lineHeight: "24px",
+                      padding: "16px",
+                      borderRadius: 14,
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      minHeight: 120,
+                    }}
                   />
-                  <span className="absolute bottom-3 right-4 font-body text-xs" style={{ color: "#6B7280" }}>{charCount}/{MAX_CHARS}</span>
+
+                  {/* Char counter ring */}
+                  <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                    <svg width="20" height="20" style={{ transform: "rotate(-90deg)" }}>
+                      <circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="2" />
+                      <circle
+                        cx="10" cy="10" r="8" fill="none"
+                        stroke={charLeft < 50 ? "#EF4444" : "#8B5CF6"}
+                        strokeWidth="2"
+                        strokeDasharray={`${2 * Math.PI * 8}`}
+                        strokeDashoffset={`${2 * Math.PI * 8 * (1 - charPct / 100)}`}
+                        style={{ transition: "stroke-dashoffset 0.2s ease" }}
+                      />
+                    </svg>
+                    {charLeft < 50 && (
+                      <span className="font-body text-xs" style={{ color: charLeft < 20 ? "#EF4444" : "#F59E0B" }}>
+                        {charLeft}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Sender name toggle */}
-                <div className="flex items-center gap-3 mt-4 py-3 px-4 rounded-xl" style={{ backgroundColor: "#F3F4F6" }}>
-                  <button type="button" onClick={() => setShowName(!showName)} className="relative cursor-pointer" style={{ width: 44, height: 24, borderRadius: 12, backgroundColor: showName ? "#8B5CF6" : "#D1D5DB", border: "none", transition: "background 0.2s" }}>
-                    <span className="absolute top-0.5 rounded-full bg-white transition-all duration-200" style={{ width: 20, height: 20, left: showName ? 22 : 2 }} />
+                <div className="flex items-center gap-3 mt-3 px-3 py-3 rounded-xl"
+                  style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowName(!showName)}
+                    className="relative cursor-pointer flex-shrink-0"
+                    style={{ width: 40, height: 22, borderRadius: 11, backgroundColor: showName ? "#8B5CF6" : "rgba(255,255,255,0.1)", border: "none", transition: "background 0.25s" }}>
+                    <span className="absolute top-1 rounded-full bg-white transition-all duration-200"
+                      style={{ width: 18, height: 18, left: showName ? 20 : 2 }} />
                   </button>
-                  <span className="font-body text-sm" style={{ color: "#374151" }}>
+                  <span className="font-body text-xs" style={{ color: showName ? "rgba(255,255,255,0.7)" : "#6B7280" }}>
                     {showName ? "✍️ Sending as" : "👻 Sending anonymously"}
                   </span>
                   {showName && (
@@ -219,37 +348,53 @@ export default function ProfilePage() {
                       onChange={(e) => setSenderName(e.target.value)}
                       placeholder="Your name"
                       maxLength={30}
-                      className="flex-1 font-body text-sm outline-none"
-                      style={{ backgroundColor: "transparent", color: "#0A0A0A", border: "none", borderBottom: "2px solid #8B5CF6", padding: "4px 0" }}
+                      className="flex-1 font-body text-xs outline-none"
+                      style={{ backgroundColor: "transparent", color: "#FFFFFF", border: "none", borderBottom: "1px solid rgba(139,92,246,0.4)", padding: "2px 0" }}
                     />
                   )}
                 </div>
-
-                <button
-                  type="submit"
-                  disabled={!message.trim() || sending || cooldown}
-                  id="send-message-btn"
-                  className="w-full mt-4 font-body text-sm font-bold cursor-pointer transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: "#8B5CF6", color: "#FFFFFF", padding: "16px 28px", borderRadius: "28px", border: "none", boxShadow: "0px 0px 24px rgba(139,92,246,0.4)", minHeight: "52px" }}
-                >
-                  {sending ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#FFFFFF", borderTopColor: "transparent" }} />
-                      Sending...
-                    </span>
-                  ) : (
-                    "Send anonymously 👻"
-                  )}
-                </button>
               </div>
 
-              <p className="font-body text-xs text-center mt-4" style={{ color: "#6B7280" }}>
-                🔒 Your identity is completely hidden. We don&apos;t track or store any sender info.
+              {/* Send button */}
+              <button
+                type="submit"
+                disabled={!message.trim() || sending || cooldown}
+                className="send-btn w-full font-body text-sm font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed mt-4 transition-all duration-200"
+                style={{
+                  backgroundColor: "#8B5CF6",
+                  color: "#FFFFFF",
+                  padding: "16px",
+                  borderRadius: 28,
+                  border: "none",
+                  boxShadow: "0 0 24px rgba(139,92,246,0.4)",
+                  minHeight: 52,
+                  fontSize: 15,
+                }}>
+                {sending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 rounded-full border-2 animate-spin"
+                      style={{ borderColor: "#FFFFFF", borderTopColor: "transparent" }} />
+                    Sending...
+                  </span>
+                ) : cooldown ? "Wait a moment..." : "Send anonymously 👻"}
+              </button>
+
+              <p className="font-body text-xs text-center mt-4" style={{ color: "rgba(255,255,255,0.2)" }}>
+                🔒 Completely anonymous. No sender info stored.
               </p>
             </form>
-          )}
+
+            {/* Create own link */}
+            <div className="text-center mt-8">
+              <Link href="/login"
+                className="font-body text-xs no-underline"
+                style={{ color: "rgba(139,92,246,0.6)" }}>
+                Get your own Inkognito link →
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

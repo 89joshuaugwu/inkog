@@ -1,11 +1,16 @@
+import { getMessageType } from "@/lib/messageTypes";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "inkog.vercel.app";
+
 /**
- * Generates a premium branded Inkognito message card as a downloadable image.
- * Uses HTML Canvas API with gradients, glow effects, and decorative elements.
+ * Generates a premium branded Inkognito message card.
  * Size: 1080×1350 (Instagram story optimized)
+ * Now supports per-type theming and fixes font size rendering.
  */
 export async function generateMessageImage(
   messageContent: string,
-  username: string
+  username: string,
+  messageType?: string
 ): Promise<Blob> {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
@@ -15,8 +20,21 @@ export async function generateMessageImage(
   canvas.width = W;
   canvas.height = H;
 
-  // === BACKGROUND ===
-  // Rich dark gradient background
+  // ── Resolve type config ─────────────────────────────────────
+  const config = getMessageType(messageType);
+
+  // Extract RGB values from badgeBorder for theming
+  // badgeBorder is like "rgba(139, 92, 246, 0.4)" → we want the RGB part
+  const rgbMatch = config.badgeBorder.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  const [accentR, accentG, accentB] = rgbMatch
+    ? [rgbMatch[1], rgbMatch[2], rgbMatch[3]]
+    : ["139", "92", "246"];
+  const accent = `rgb(${accentR}, ${accentG}, ${accentB})`;
+  const accentDim = `rgba(${accentR}, ${accentG}, ${accentB}, 0.15)`;
+  const accentMid = `rgba(${accentR}, ${accentG}, ${accentB}, 0.35)`;
+  const accentGlow = `rgba(${accentR}, ${accentG}, ${accentB}, 0.12)`;
+
+  // ── Background ───────────────────────────────────────────────
   const bgGrad = ctx.createLinearGradient(0, 0, W, H);
   bgGrad.addColorStop(0, "#0A0A0A");
   bgGrad.addColorStop(0.5, "#0F0A1A");
@@ -24,74 +42,77 @@ export async function generateMessageImage(
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // === AMBIENT GLOW ORBS ===
-  // Top-left violet glow
-  const glow1 = ctx.createRadialGradient(100, 200, 0, 100, 200, 400);
-  glow1.addColorStop(0, "rgba(124, 58, 237, 0.15)");
-  glow1.addColorStop(1, "rgba(124, 58, 237, 0)");
+  // ── Ambient glow orbs ────────────────────────────────────────
+  // Top-left — type accent color
+  const glow1 = ctx.createRadialGradient(80, 180, 0, 80, 180, 420);
+  glow1.addColorStop(0, `rgba(${accentR}, ${accentG}, ${accentB}, 0.14)`);
+  glow1.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = glow1;
   ctx.fillRect(0, 0, W, H);
 
-  // Bottom-right cyan glow
-  const glow2 = ctx.createRadialGradient(W - 150, H - 300, 0, W - 150, H - 300, 450);
-  glow2.addColorStop(0, "rgba(6, 182, 212, 0.12)");
-  glow2.addColorStop(1, "rgba(6, 182, 212, 0)");
+  // Bottom-right — complementary cyan
+  const glow2 = ctx.createRadialGradient(W - 120, H - 280, 0, W - 120, H - 280, 460);
+  glow2.addColorStop(0, "rgba(6, 182, 212, 0.10)");
+  glow2.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = glow2;
   ctx.fillRect(0, 0, W, H);
 
-  // Center violet accent
-  const glow3 = ctx.createRadialGradient(W / 2, H / 2 - 50, 0, W / 2, H / 2 - 50, 350);
-  glow3.addColorStop(0, "rgba(139, 92, 246, 0.08)");
-  glow3.addColorStop(1, "rgba(139, 92, 246, 0)");
+  // Center subtle
+  const glow3 = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 380);
+  glow3.addColorStop(0, accentGlow);
+  glow3.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = glow3;
   ctx.fillRect(0, 0, W, H);
 
-  // === TOP GRADIENT BAR ===
+  // ── Top gradient bar ─────────────────────────────────────────
   const topGrad = ctx.createLinearGradient(0, 0, W, 0);
   topGrad.addColorStop(0, "#7C3AED");
-  topGrad.addColorStop(0.5, "#8B5CF6");
+  topGrad.addColorStop(0.5, accent);
   topGrad.addColorStop(1, "#06B6D4");
   ctx.fillStyle = topGrad;
   ctx.fillRect(0, 0, W, 6);
 
-  // === DECORATIVE FLOATING ELEMENTS ===
-  ctx.globalAlpha = 0.06;
-  ctx.font = "120px sans-serif";
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillText("👻", 60, 180);
-  ctx.fillText("💬", W - 200, 250);
-  ctx.fillText("✨", 80, H - 200);
-  ctx.fillText("🔥", W - 180, H - 250);
-  ctx.globalAlpha = 1;
-
-  // === SMALL DECORATIVE DOTS ===
-  ctx.fillStyle = "rgba(139, 92, 246, 0.08)";
-  for (let i = 0; i < 80; i++) {
-    const x = Math.random() * W;
-    const y = Math.random() * H;
-    const r = Math.random() * 2 + 0.5;
+  // ── Decorative static dots (seeded positions, not random) ────
+  const dotPositions = [
+    [120, 320], [980, 200], [200, 900], [900, 1100],
+    [540, 150], [760, 600], [300, 1200], [820, 380],
+    [160, 700], [950, 850], [440, 1280], [680, 480],
+    [240, 450], [860, 250], [500, 950], [100, 1050],
+    [700, 130], [400, 720], [1000, 680], [350, 1100],
+  ];
+  ctx.fillStyle = `rgba(${accentR}, ${accentG}, ${accentB}, 0.07)`;
+  for (const [x, y] of dotPositions) {
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.arc(x, y, 2, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // === MAIN MESSAGE CARD ===
+  // Larger faint dots
+  ctx.fillStyle = `rgba(${accentR}, ${accentG}, ${accentB}, 0.04)`;
+  const largeDots = [[80, 600], [1000, 400], [540, 1200], [300, 250], [780, 1050]];
+  for (const [x, y] of largeDots) {
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ── Main message card ────────────────────────────────────────
   const cardX = 60;
-  const cardY = 280;
+  const cardY = 260;
   const cardW = W - 120;
-  const cardH = H - 520;
-  const cardR = 32;
+  const cardH = H - 480;
+  const cardR = 36;
 
   // Card shadow
-  ctx.shadowColor = "rgba(139, 92, 246, 0.15)";
-  ctx.shadowBlur = 60;
-  ctx.shadowOffsetY = 10;
+  ctx.shadowColor = `rgba(${accentR}, ${accentG}, ${accentB}, 0.2)`;
+  ctx.shadowBlur = 70;
+  ctx.shadowOffsetY = 16;
 
-  // Card fill with subtle gradient
-  const cardGradFill = ctx.createLinearGradient(cardX, cardY, cardX + cardW, cardY + cardH);
-  cardGradFill.addColorStop(0, "#161622");
-  cardGradFill.addColorStop(1, "#141418");
-  ctx.fillStyle = cardGradFill;
+  // Card fill
+  const cardFill = ctx.createLinearGradient(cardX, cardY, cardX + cardW, cardY + cardH);
+  cardFill.addColorStop(0, "#171723");
+  cardFill.addColorStop(1, "#141418");
+  ctx.fillStyle = cardFill;
   ctx.beginPath();
   ctx.roundRect(cardX, cardY, cardW, cardH, cardR);
   ctx.fill();
@@ -101,14 +122,14 @@ export async function generateMessageImage(
   ctx.shadowBlur = 0;
   ctx.shadowOffsetY = 0;
 
-  // Card border with gradient
-  ctx.strokeStyle = "rgba(139, 92, 246, 0.25)";
+  // Card border
+  ctx.strokeStyle = accentMid;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.roundRect(cardX, cardY, cardW, cardH, cardR);
   ctx.stroke();
 
-  // Card top accent gradient bar
+  // Card top accent bar
   ctx.save();
   ctx.beginPath();
   ctx.roundRect(cardX, cardY, cardW, 5, [cardR, cardR, 0, 0]);
@@ -117,42 +138,81 @@ export async function generateMessageImage(
   ctx.fillRect(cardX, cardY, cardW, 5);
   ctx.restore();
 
-  // === GHOST ICON + "Someone sent you a message" ===
-  ctx.font = "48px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("👻", W / 2, cardY + 70);
+  // ── Type badge inside card ───────────────────────────────────
+  const badgeText = `${config.emoji}  ${config.badgeLabel.toUpperCase()}`;
+  ctx.font = "bold 22px 'Segoe UI', Arial, sans-serif";
+  const badgeTextW = ctx.measureText(badgeText).width;
+  const badgeW = badgeTextW + 48;
+  const badgeH = 44;
+  const badgeX = (W - badgeW) / 2;
+  const badgeY = cardY + 36;
 
-  ctx.fillStyle = "rgba(167, 139, 250, 0.8)";
-  ctx.font = "bold 22px 'Segoe UI', sans-serif";
-  ctx.fillText("Someone sent you a message", W / 2, cardY + 110);
+  // Badge pill background
+  ctx.fillStyle = accentDim;
+  ctx.beginPath();
+  ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 22);
+  ctx.fill();
 
-  // Decorative line under label
-  const lineGrad = ctx.createLinearGradient(W / 2 - 120, 0, W / 2 + 120, 0);
-  lineGrad.addColorStop(0, "rgba(139, 92, 246, 0)");
-  lineGrad.addColorStop(0.5, "rgba(139, 92, 246, 0.4)");
-  lineGrad.addColorStop(1, "rgba(139, 92, 246, 0)");
-  ctx.strokeStyle = lineGrad;
+  // Badge pill border
+  ctx.strokeStyle = accentMid;
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(W / 2 - 140, cardY + 130);
-  ctx.lineTo(W / 2 + 140, cardY + 130);
+  ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 22);
   ctx.stroke();
 
-  // === MESSAGE CONTENT ===
-  // Dynamic font size based on message length
-  const msgLen = messageContent.length;
-  let fontSize = 48;
-  let lineHeight = 64;
-  let maxLines = 6;
-  if (msgLen > 200) { fontSize = 26; lineHeight = 38; maxLines = 12; }
-  else if (msgLen > 120) { fontSize = 30; lineHeight = 44; maxLines = 10; }
-  else if (msgLen > 60) { fontSize = 36; lineHeight = 50; maxLines = 8; }
-
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = `500 ${fontSize}px 'Segoe UI', sans-serif`;
+  // Badge text
+  ctx.fillStyle = accent;
+  ctx.font = "bold 22px 'Segoe UI', Arial, sans-serif";
   ctx.textAlign = "center";
+  ctx.fillText(badgeText, W / 2, badgeY + 30);
 
-  const maxLineWidth = cardW - 120;
+  // ── Ghost + subtitle ─────────────────────────────────────────
+  ctx.font = "52px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("👻", W / 2, cardY + 148);
+
+  ctx.fillStyle = "rgba(167, 139, 250, 0.75)";
+  ctx.font = "500 24px 'Segoe UI', Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Someone sent you a message", W / 2, cardY + 192);
+
+  // Divider under subtitle
+  const divGrad = (y: number) => {
+    const g = ctx.createLinearGradient(W / 2 - 160, y, W / 2 + 160, y);
+    g.addColorStop(0, "rgba(139,92,246,0)");
+    g.addColorStop(0.5, accentMid);
+    g.addColorStop(1, "rgba(139,92,246,0)");
+    return g;
+  };
+  ctx.strokeStyle = divGrad(cardY + 210);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(W / 2 - 180, cardY + 214);
+  ctx.lineTo(W / 2 + 180, cardY + 214);
+  ctx.stroke();
+
+  // ── Message content ──────────────────────────────────────────
+  // Dynamic font size based on message length — FIXED: actually used in render
+  const msgLen = messageContent.length;
+  let fontSize: number;
+  let lineHeight: number;
+  let maxLines: number;
+
+  if (msgLen > 250) {
+    fontSize = 28; lineHeight = 42; maxLines = 14;
+  } else if (msgLen > 180) {
+    fontSize = 32; lineHeight = 46; maxLines = 12;
+  } else if (msgLen > 120) {
+    fontSize = 36; lineHeight = 52; maxLines = 10;
+  } else if (msgLen > 60) {
+    fontSize = 42; lineHeight = 60; maxLines = 8;
+  } else {
+    fontSize = 52; lineHeight = 70; maxLines = 6;
+  }
+
+  // Word wrap
+  ctx.font = `500 ${fontSize}px 'Segoe UI', Arial, sans-serif`;
+  const maxLineWidth = cardW - 140;
   const words = messageContent.split(" ");
   const lines: string[] = [];
   let currentLine = "";
@@ -169,67 +229,71 @@ export async function generateMessageImage(
   if (currentLine) lines.push(currentLine);
 
   const displayLines = lines.slice(0, maxLines);
-  if (lines.length > maxLines) displayLines[maxLines - 1] = displayLines[maxLines - 1] + "...";
+  if (lines.length > maxLines) {
+    displayLines[maxLines - 1] = displayLines[maxLines - 1].replace(/\s\S+$/, "") + "…";
+  }
 
   const totalTextH = displayLines.length * lineHeight;
-  const availableSpace = cardH - 220;
-  const textStartY = cardY + 160 + (availableSpace - totalTextH) / 2;
+  const textAreaTop = cardY + 230;
+  const textAreaH = cardH - 310;
+  const textStartY = textAreaTop + (textAreaH - totalTextH) / 2;
 
-  // Opening quote mark
-  ctx.fillStyle = "rgba(139, 92, 246, 0.3)";
-  ctx.font = "bold 80px Georgia, serif";
+  // Opening quote — same font family, just styled
+  ctx.fillStyle = accentMid;
+  ctx.font = `bold ${fontSize + 28}px Georgia, 'Times New Roman', serif`;
   ctx.textAlign = "left";
-  ctx.fillText("\u201C", cardX + 40, textStartY - 10);
+  ctx.fillText("\u201C", cardX + 44, textStartY + 12);
 
-  // Message text
+  // Message text — uses the DYNAMIC fontSize (bug fixed)
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = "500 36px 'Segoe UI', sans-serif";
+  ctx.font = `500 ${fontSize}px 'Segoe UI', Arial, sans-serif`;
   ctx.textAlign = "center";
   for (let i = 0; i < displayLines.length; i++) {
     ctx.fillText(displayLines[i], W / 2, textStartY + i * lineHeight);
   }
 
-  // Closing quote mark
-  ctx.fillStyle = "rgba(139, 92, 246, 0.3)";
-  ctx.font = "bold 80px Georgia, serif";
+  // Closing quote
+  ctx.fillStyle = accentMid;
+  ctx.font = `bold ${fontSize + 28}px Georgia, 'Times New Roman', serif`;
   ctx.textAlign = "right";
-  ctx.fillText("\u201D", cardX + cardW - 40, textStartY + totalTextH + 20);
+  ctx.fillText("\u201D", cardX + cardW - 44, textStartY + totalTextH + 18);
 
-  // === BOTTOM DIVIDER ===
-  ctx.strokeStyle = lineGrad;
+  // ── Bottom divider ────────────────────────────────────────────
+  ctx.strokeStyle = divGrad(cardY + cardH - 80);
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(cardX + 60, cardY + cardH - 80);
   ctx.lineTo(cardX + cardW - 60, cardY + cardH - 80);
   ctx.stroke();
 
-  // === USERNAME at bottom of card ===
-  ctx.fillStyle = "#A78BFA";
-  ctx.font = "bold 26px 'Segoe UI', sans-serif";
+  // ── Username at bottom of card ────────────────────────────────
+  ctx.fillStyle = accent;
+  ctx.font = "bold 28px 'Segoe UI', Arial, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(`@${username}`, W / 2, cardY + cardH - 42);
+  ctx.fillText(`@${username}`, W / 2, cardY + cardH - 40);
 
-  // === BOTTOM BRANDING ===
-  // Inkognito logo text with glow
-  ctx.shadowColor = "rgba(139, 92, 246, 0.4)";
-  ctx.shadowBlur = 20;
+  // ── Bottom branding ───────────────────────────────────────────
+  // Inkognito wordmark
+  ctx.shadowColor = `rgba(${accentR}, ${accentG}, ${accentB}, 0.5)`;
+  ctx.shadowBlur = 24;
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = "bold 40px 'Segoe UI', sans-serif";
+  ctx.font = "bold 44px 'Segoe UI', Arial, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("Inkognito", W / 2, H - 130);
+  ctx.fillText("Inkognito", W / 2, H - 140);
   ctx.shadowColor = "transparent";
   ctx.shadowBlur = 0;
 
   // Tagline
-  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-  ctx.font = "500 22px 'Segoe UI', sans-serif";
-  ctx.fillText("Say it. Anonymously. 👻", W / 2, H - 88);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.38)";
+  ctx.font = "500 24px 'Segoe UI', Arial, sans-serif";
+  ctx.fillText("Say it. Anonymously. 👻", W / 2, H - 96);
 
-  // CTA
-  ctx.fillStyle = "rgba(167, 139, 250, 0.6)";
-  ctx.font = "bold 18px 'Segoe UI', sans-serif";
-  ctx.fillText("inkog.vercel.app", W / 2, H - 55);
+  // CTA URL
+  ctx.fillStyle = `rgba(${accentR}, ${accentG}, ${accentB}, 0.65)`;
+  ctx.font = "bold 20px 'Segoe UI', Arial, sans-serif";
+  ctx.fillText(APP_URL, W / 2, H - 58);
 
-  // === BOTTOM GRADIENT BAR ===
+  // ── Bottom gradient bar ───────────────────────────────────────
   ctx.fillStyle = topGrad;
   ctx.fillRect(0, H - 6, W, 6);
 
@@ -240,13 +304,14 @@ export async function generateMessageImage(
 
 export async function downloadMessageImage(
   messageContent: string,
-  username: string
+  username: string,
+  messageType?: string
 ) {
-  const blob = await generateMessageImage(messageContent, username);
+  const blob = await generateMessageImage(messageContent, username, messageType);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `inkognito-message-${Date.now()}.png`;
+  a.download = `inkognito-${messageType || "message"}-${Date.now()}.png`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -255,18 +320,21 @@ export async function downloadMessageImage(
 
 export async function shareMessageImage(
   messageContent: string,
-  username: string
+  username: string,
+  messageType?: string
 ) {
-  const blob = await generateMessageImage(messageContent, username);
-  const file = new File([blob], "inkognito-message.png", { type: "image/png" });
+  const blob = await generateMessageImage(messageContent, username, messageType);
+  const file = new File([blob], `inkognito-${messageType || "message"}.png`, {
+    type: "image/png",
+  });
 
   if (navigator.share && navigator.canShare({ files: [file] })) {
     await navigator.share({
       files: [file],
       title: "Inkognito Message",
-      text: "Check out this anonymous message I got on Inkognito! 👻",
+      text: `Check out this anonymous ${messageType || "message"} I got on Inkognito! 👻`,
     });
   } else {
-    await downloadMessageImage(messageContent, username);
+    await downloadMessageImage(messageContent, username, messageType);
   }
 }
