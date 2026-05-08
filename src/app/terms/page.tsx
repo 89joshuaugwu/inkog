@@ -102,12 +102,12 @@ export default function TermsPage() {
 
           <Section title="12. Contact">
             Questions about these Terms? Email us at{" "}
-            <a href="mailto:joshuaugwu04062002@gmail.com" style={{ color: "#A78BFA" }}>
-              joshuaugwu04062002@gmail.com
+            <a href="mailto:inkognito.notifications@gmail.com" style={{ color: "#A78BFA" }}>
+              inkognito.notifications@gmail.com
             </a>.
           </Section>
         </div>
-
+        
         {/* Back link */}
         <div className="mt-16 pt-8" style={{ borderTop: "1px solid rgba(139,92,246,0.15)" }}>
           <Link href="/" className="font-body text-sm no-underline" style={{ color: "#A78BFA" }}>
