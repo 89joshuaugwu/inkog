@@ -219,8 +219,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await signInWithPopup(auth, googleProvider);
       const profile = await fetchProfile(result.user);
 
-      // Send login alert for existing users (fire-and-forget)
-      if (profile && profile.onboardingComplete && result.user.email) {
+      // Send login alert for existing users (fire-and-forget, respects prefs)
+      if (
+        profile &&
+        profile.onboardingComplete &&
+        result.user.email &&
+        (profile as unknown as { notificationPrefs?: { emailLoginAlert?: boolean } })
+          .notificationPrefs?.emailLoginAlert !== false
+      ) {
         sendEmail("login_alert", result.user.email, {
           displayName: profile.displayName || result.user.displayName || "",
         });

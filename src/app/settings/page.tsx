@@ -9,6 +9,7 @@ import { generateQRCodeURL } from "@/lib/qrcode";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import NotificationPrefs from "@/components/NotificationPrefs";
 
 export default function SettingsPage() {
   const { user, userProfile, loading, updateProfile, signOut } = useAuth();
@@ -453,6 +454,9 @@ export default function SettingsPage() {
             Scan to send @{userProfile.username} a message
           </p>
         </div>
+
+        {/* Notification Preferences */}
+        <NotificationPrefs />
 
         {/* Danger Zone */}
         <div

@@ -21,6 +21,10 @@ interface UserProfile {
   bio: string;
   prompt: string;
   email?: string;
+  notificationPrefs?: {
+    emailNewMessage?: boolean;
+    pushNewMessage?: boolean;
+  };
 }
 
 export default function ProfilePage() {
@@ -87,8 +91,8 @@ export default function ProfilePage() {
         await set(countRef, (snap.val() || 0) + 1);
       } catch { /* non-critical */ }
 
-      // Email
-      if (profile.email) {
+      // Email (respect user preference — defaults to enabled)
+      if (profile.email && profile.notificationPrefs?.emailNewMessage !== false) {
         sendEmail("new_message", profile.email, {
           displayName: profile.displayName,
           username: profile.username,
@@ -97,15 +101,17 @@ export default function ProfilePage() {
         });
       }
 
-      // Push notification (fire-and-forget)
-      fetch("/api/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recipientUid: profile.uid,
-          messagePreview: message.trim(),
-        }),
-      }).catch(() => {});
+      // Push notification (respect user preference — defaults to enabled)
+      if (profile.notificationPrefs?.pushNewMessage !== false) {
+        fetch("/api/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipientUid: profile.uid,
+            messagePreview: message.trim(),
+          }),
+        }).catch(() => {});
+      }
 
       if (showName && senderName.trim()) {
         localStorage.setItem("inkognito_sender_name", senderName.trim());
