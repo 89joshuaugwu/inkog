@@ -24,6 +24,7 @@ import {
   query,
   where,
   getDocs,
+  arrayRemove,
 } from "firebase/firestore";
 import { auth, googleProvider, db } from "@/lib/firebase";
 import { sendEmail } from "@/lib/sendEmail";
@@ -232,6 +233,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     try {
+      // Remove this device's FCM token before signing out
+      if (user) {
+        try {
+          const deviceToken = sessionStorage.getItem("inkognito_fcm_token");
+          if (deviceToken) {
+            await updateDoc(doc(db, "users", user.uid), {
+              fcmTokens: arrayRemove(deviceToken),
+            });
+            sessionStorage.removeItem("inkognito_fcm_token");
+          }
+        } catch {
+          // Token cleanup is best-effort — don't block sign out
+        }
+      }
+
       await firebaseSignOut(auth);
       setUser(null);
       setUserProfile(null);

@@ -2,12 +2,14 @@
 
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, arrayUnion } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 /**
  * Requests browser notification permission on login,
  * gets FCM token using VAPID key, saves token to Firestore.
+ * Supports multi-device: adds token to fcmTokens[] array
+ * and stores in sessionStorage for cleanup on logout.
  * Renders nothing — pure side-effect component.
  */
 export default function NotificationSetup() {
@@ -53,10 +55,13 @@ export default function NotificationSetup() {
         });
 
         if (token && user) {
-          // Save token to Firestore
+          // Add token to fcmTokens array (arrayUnion prevents duplicates)
           await updateDoc(doc(db, "users", user.uid), {
-            fcmToken: token,
+            fcmTokens: arrayUnion(token),
           });
+
+          // Store this device's token in sessionStorage for logout cleanup
+          sessionStorage.setItem("inkognito_fcm_token", token);
         }
       } catch (err) {
         // FCM setup is non-critical — log and continue
