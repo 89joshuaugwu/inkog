@@ -3,53 +3,58 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ── Admin helper ─────────────────────────────────────────
+    // Update this to match your NEXT_PUBLIC_ADMIN_EMAIL value
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email in [
+             "joshuazaza89@gmail.com",
+             "admin@inkognito.com"
+           ];
+    }
+
     // ============================================
     // USERS COLLECTION
     // ============================================
     match /users/{userId} {
 
-      // Anyone can read user profiles (needed for public /u/[username] page)
+      // Anyone can read profiles (needed for public /u/[username])
       allow read: if true;
 
-      // Only the authenticated owner can create their own profile
+      // Only the authenticated owner can create their profile
       allow create: if request.auth != null
                     && request.auth.uid == userId
                     && request.resource.data.uid == userId;
 
-      // Only the authenticated owner can update their own profile
-      // Cannot change uid, email, username, or createdAt
+      // Only the authenticated owner can update
+      // Cannot change uid, email, or createdAt
       allow update: if request.auth != null
                     && request.auth.uid == userId
                     && request.resource.data.uid == resource.data.uid
                     && request.resource.data.email == resource.data.email
                     && (
-                      // Allow setting username during onboarding (when currently empty)
                       (resource.data.username == "" && request.resource.data.username is string)
                       ||
-                      // Prevent changing username after onboarding
                       request.resource.data.username == resource.data.username
                     );
 
-      // Users cannot delete their profiles (admin only)
-      allow delete: if false;
+      // Admin can delete users (for admin dashboard)
+      allow delete: if isAdmin();
     }
 
     // ============================================
-    // USERNAMES COLLECTION (uniqueness lookup)
+    // USERNAMES COLLECTION
     // ============================================
     match /usernames/{username} {
 
-      // Anyone can read (for availability checks)
       allow read: if true;
 
-      // Only authenticated users can reserve a username
       allow create: if request.auth != null
                     && request.resource.data.uid == request.auth.uid
                     && request.resource.data.username is string
                     && request.resource.data.username.size() >= 3
                     && request.resource.data.username.size() <= 20;
 
-      // Usernames cannot be updated or deleted
       allow update: if false;
       allow delete: if false;
     }
@@ -59,16 +64,22 @@ service cloud.firestore {
     // ============================================
     match /messages/{messageId} {
 
-      // Recipient can read their own messages
-      // Admin can read all messages for moderation
-      allow read: if request.auth != null
-                  && (resource.data.recipientId == request.auth.uid
-                      || request.auth.token.email == "admin@inkognito.com");
+      // ── FIX: Split read into get + list ──────────────────
+      // get = single document read (resource.data IS available)
+      // list = query / aggregation (resource.data is NULL — cannot use it)
 
-      // Anyone can create (send) a message — no auth required
-      // This is the core anonymous messaging feature
+      // Single document read: recipient or admin
+      allow get: if request.auth != null
+                 && (resource.data.recipientId == request.auth.uid
+                     || isAdmin());
+
+      // List / aggregation (getCountFromServer, queries): admin only
+      // resource.data is NOT available here — do NOT reference it
+      allow list: if isAdmin();
+
+      // Anyone can send a message (anonymous messaging core feature)
       allow create: if request.resource.data.keys().hasAll([
-                         'content', 'recipientId', 'recipientUsername', 'createdAt'
+                         "content", "recipientId", "recipientUsername", "createdAt"
                        ])
                     && request.resource.data.content is string
                     && request.resource.data.content.size() >= 1
@@ -78,10 +89,10 @@ service cloud.firestore {
                     && request.resource.data.keys().size() >= 4
                     && request.resource.data.keys().size() <= 6;
 
-      // Recipient or admin can delete messages
+      // Recipient or admin can delete
       allow delete: if request.auth != null
                     && (resource.data.recipientId == request.auth.uid
-                        || request.auth.token.email == "admin@inkognito.com");
+                        || isAdmin());
 
       // Recipient can update reaction only
       allow update: if request.auth != null
